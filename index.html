@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>APEX-ENGINE · 端到端推理引擎 + RAG 自检</title>
+<style>
+  :root {
+    --bg: #f6f8fb; --card: #ffffff; --ink: #1f2733; --sub: #5b6b7f;
+    --line: #e3e9f0; --ok: #0a8f4f; --bad: #d23b3b; --accent: #2563eb;
+    --accent2: #7c3aed;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: var(--bg); color: var(--ink); line-height: 1.55; padding: 28px 18px 60px; }
+  .wrap { max-width: 920px; margin: 0 auto; }
+  h1 { font-size: 26px; margin: 0 0 4px; letter-spacing: .5px; }
+  .sub { color: var(--sub); font-size: 14px; margin-bottom: 18px; }
+  .panel { background: var(--card); border: 1px solid var(--line); border-radius: 14px;
+    padding: 18px 20px; margin-bottom: 18px; box-shadow: 0 1px 3px rgba(20,30,50,.04); }
+  .btns { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
+  button { font: inherit; font-weight: 600; border: 1px solid var(--accent); color: #fff;
+    background: var(--accent); padding: 10px 16px; border-radius: 10px; cursor: pointer; }
+  button.alt { background: #fff; color: var(--accent); }
+  button:disabled { opacity: .5; cursor: default; }
+  #summary { font-size: 15px; font-weight: 700; margin-bottom: 10px; min-height: 22px; }
+  .grid { display: grid; grid-template-columns: 1fr; gap: 10px; }
+  .item { display: flex; align-items: flex-start; gap: 12px; padding: 11px 13px;
+    border: 1px solid var(--line); border-radius: 10px; background: #fbfdff; }
+  .badge { font-size: 18px; line-height: 1; flex: 0 0 auto; padding-top: 1px; }
+  .name { font-weight: 650; }
+  .detail { color: var(--sub); font-size: 13px; margin-top: 2px; font-family: ui-monospace, "SFMono-Regular", Menlo, monospace; }
+  .pass .badge { color: var(--ok); } .fail .badge { color: var(--bad); }
+  .demo-row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-bottom: 12px; }
+  input[type=text] { flex: 1; min-width: 220px; font: inherit; padding: 9px 12px;
+    border: 1px solid var(--line); border-radius: 9px; }
+  .out { background: #0f172a; color: #d6e2ff; border-radius: 10px; padding: 14px 16px;
+    font-family: ui-monospace, Menlo, monospace; font-size: 13px; white-space: pre-wrap; min-height: 60px; }
+  footer { color: var(--sub); font-size: 12px; margin-top: 26px; text-align: center; }
+  a { color: var(--accent); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>APEX-ENGINE · 端到端推理引擎 + RAG</h1>
+  <div class="sub">站在世界顶级成果之上：KV-Cache（vLLM/TGI 工业标配）· BM25（Robertson &amp; Zaragoza 2009）· Top-k/Top-p 采样（Fan 2018 / Holtzman 2020）· 复用地基 apex-forge / apex-transformer</div>
+
+  <div class="panel">
+    <div class="btns">
+      <button id="runBtn" onclick="runSelfTest()">运行全部自检</button>
+      <button id="demoBtn" class="alt" onclick="trainAndEnableDemo()">载入 RAG 演示（训练小模型）</button>
+    </div>
+    <div id="summary">点击「运行全部自检」开始 —— 每条自检都是可被独立实现交叉验证的数学不变量。</div>
+    <div id="grid" class="grid"></div>
+  </div>
+
+  <div class="panel">
+    <div class="demo-row">
+      <input id="q" type="text" value="RoPE 旋转 位置" placeholder="输入检索查询，例如：缩放点积 相关性" />
+      <button onclick="runRag()">检索 + 生成</button>
+    </div>
+    <div id="demoOut" class="out">演示需先点击上方「载入 RAG 演示」训练一个玩具级小语言模型（约 1-2 秒）。</div>
+  </div>
+
+  <footer>作者：晨星 (GitHub: CJX0712) · 许可：MIT · 诚实声明：验证的是「引擎正确」（KV-Cache 等价、检索指标、管线连通），搭载玩具级小模型，不宣称生成质量可用。</footer>
+</div>
+
+<script src="apex-forge.js"></script>
+<script src="apex-transformer.js"></script>
+<script src="apex-engine.js"></script>
+<script>
+  function runSelfTest() {
+    const btn = document.getElementById('runBtn'); btn.disabled = true;
+    document.getElementById('summary').textContent = '运行中…';
+    document.getElementById('grid').innerHTML = '';
+    setTimeout(() => {
+      const r = APEX_E.runSelfTest();
+      let pass = 0; const grid = document.getElementById('grid');
+      r.forEach(x => {
+        const el = document.createElement('div');
+        el.className = 'item ' + (x.pass ? 'pass' : 'fail');
+        el.innerHTML = '<div class="badge">' + (x.pass ? '✅' : '❌') + '</div>' +
+          '<div><div class="name">' + x.name + '</div><div class="detail">' + x.detail + '</div></div>';
+        grid.appendChild(el); if (x.pass) pass++;
+      });
+      document.getElementById('summary').textContent = '结果：' + pass + ' / ' + r.length + ' 全绿';
+      btn.disabled = false;
+    }, 20);
+  }
+
+  let DEMO = null;
+  function trainAndEnableDemo() {
+    const btn = document.getElementById('demoBtn'); btn.disabled = true; btn.textContent = '训练中…';
+    setTimeout(() => {
+      const docs = [
+        '注意力 机制 通过 缩放点积 计算 相关性',
+        '优化器 Adam 使用 动量 二阶矩 更新 参数',
+        '位置 编码 RoPE 通过 旋转 注入 相对 位置',
+        '归一化 RMSNorm 稳定 训练 残差 连接',
+        '采样 方法 top-k 与 top-p 控制 生成 多样性',
+        '检索 BM25 基于 词频 逆文档 频率 排序'
+      ];
+      const tk = APEX_E.makeTokenizer(docs);
+      const lm = APEX_E.trainTinyLM(docs, tk, { steps: 600, seed: 20261021 });
+      const bm = APEX_E.buildBM25(docs, tk);
+      DEMO = { docs, tk, lm: lm.model, bm, cfg: lm.cfg };
+      btn.textContent = '演示已就绪 ✓';
+      document.getElementById('demoOut').textContent = '小模型训练完成（600 步）。输入查询后点「检索 + 生成」。';
+    }, 30);
+  }
+
+  function runRag() {
+    if (!DEMO) { document.getElementById('demoOut').textContent = '请先点击「载入 RAG 演示」训练模型。'; return; }
+    const q = document.getElementById('q').value.trim();
+    if (!q) return;
+    const out = APEX_E.rag(q, DEMO.docs, DEMO.bm, DEMO.lm, DEMO.tk, { k: 2, heads: DEMO.cfg.heads, maxTokens: 5 });
+    let s = '查询: ' + q + '\n\n';
+    s += '【BM25 检索 Top-2】\n';
+    out.retrieved.forEach((r, i) => { s += '  ' + (i + 1) + '. doc#' + r.doc + ' (score=' + r.score.toFixed(3) + ') ' + r.text + '\n'; });
+    s += '\n【拼接 Prompt】\n  ' + out.prompt + '\n\n';
+    s += '【LM 生成 (KV-Cache greedy)】\n  ' + out.generated.text;
+    document.getElementById('demoOut').textContent = s;
+  }
+</script>
+</body>
+</html>
