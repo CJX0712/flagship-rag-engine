@@ -1,5 +1,8 @@
 # APEX-ENGINE · 端到端推理引擎 + RAG 检索
 
+> **从零造 AI，并造尺子证明它没骗你** · 一套开源的"AI 验伪"方法与实物
+> 舰队总览：[apex-flagship](https://github.com/CJX0712/apex-flagship) · 作者：晨星
+
 > 把前三块地基（[apex-forge](https://github.com/CJX0712/flagship-algo-forge) 算法库 / [apex-transformer](https://github.com/CJX0712/flagship-transformer) 参考实现）变成一套**真能跑**的系统。
 
 ## 旗舰哲学（贯穿全链路）
